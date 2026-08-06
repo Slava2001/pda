@@ -48,6 +48,9 @@ sed -ie 's/overlays=usbhost2 usbhost3/overlays=spi-tft gpio-keyboard i2c0 usbhos
 log "Change host name"
 echo "pda" > /etc/hostname
 
+log "Change password"
+echo "root:root" | chpasswd
+
 log "----------------------------------------"
 log "-                 Done                 -"
 log "----------------------------------------"

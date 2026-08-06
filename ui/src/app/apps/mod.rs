@@ -5,10 +5,19 @@ use crate::app::{App, apps::{clock::Clock, radio::Radio}};
 pub mod clock;
 pub mod radio;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub enum AppCtlAppKind {
     Clock,
     Radio
+}
+
+impl AsRef<str> for AppCtlAppKind {
+    fn as_ref(&self) -> &str {
+        match self {
+            Self::Clock => "Clock",
+            Self::Radio => "Radio",
+        }
+    }
 }
 
 pub fn build_app(kind: AppCtlAppKind) -> Arc<dyn App> {

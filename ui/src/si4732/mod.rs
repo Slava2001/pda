@@ -108,6 +108,7 @@ where
                 func: Func::QueryLibraryID,
                 opmode: OpMode::AnalogAudioOutputs
             })?;
+            self.delay.delay_ms(500);
             self.library_id = Some(self.read_resp()?);
         }
         self.library_id.as_ref().ok_or("get lib id: unexpected".into())
