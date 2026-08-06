@@ -1,0 +1,16 @@
+[package]
+name = "ui"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+embedded-graphics = "0.8"
+memmap2 = "0.9"
+evdev = { version = "0.12", features = ["tokio"] }
+libc = "0.2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }
+tokio-stream = "0.1"
+async-trait = "0.1"
+embedded-menu = "0.6.1"
+embedded-hal = "1.0"
+linux-embedded-hal = "0.4"

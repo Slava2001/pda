@@ -1,0 +1,16 @@
+[Unit]
+Description=TFT UI
+DefaultDependencies=no
+After=local-fs.target
+Before=sysinit.target
+
+[Service]
+ExecStart=/root/ui
+Restart=always
+RestartSec=1
+StandardOutput=journal
+StandardError=journal
+Type=simple
+
+[Install]
+WantedBy=sysinit.target

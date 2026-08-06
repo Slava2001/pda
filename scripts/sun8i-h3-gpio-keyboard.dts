@@ -1,0 +1,78 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "allwinner,sun8i-h3";
+
+    fragment@0 {
+        target = <&pio>;
+        __overlay__ {
+            gpio_keys_pins: gpio_keys_pins {
+                pins = "PG6", "PG7", "PA18", "PA3", "PA19", "PA10", "PA2";
+                function = "gpio_in";
+                bias-pull-up;
+            };
+        };
+    };
+
+    fragment@1 {
+        target-path = "/";
+        __overlay__ {
+            gpio_keys {
+                compatible = "gpio-keys";
+                pinctrl-names = "default";
+                pinctrl-0 = <&gpio_keys_pins>;
+                autorepeat;
+
+                volume_up {
+                    label = "Volume Up";
+                    linux,code = <115>;
+                    gpios = <&pio 6 6 1>;
+                    debounce-interval = <20>;
+                };
+
+                volume_down {
+                    label = "Volume Down";
+                    linux,code = <114>;
+                    gpios = <&pio 6 7 1>;
+                    debounce-interval = <20>;
+                };
+
+                key_up {
+                    label = "Up";
+                    linux,code = <103>;
+                    gpios = <&pio 0 18 1>;
+                    debounce-interval = <20>;
+                };
+
+                key_down {
+                    label = "Down";
+                    linux,code = <108>;
+                    gpios = <&pio 0 3 1>;
+                    debounce-interval = <20>;
+                };
+
+                key_left {
+                    label = "Left";
+                    linux,code = <105>;
+                    gpios = <&pio 0 19 1>;
+                    debounce-interval = <20>;
+                };
+
+                key_right {
+                    label = "Right";
+                    linux,code = <106>;
+                    gpios = <&pio 0 10 1>;
+                    debounce-interval = <20>;
+                };
+
+                key_enter {
+                    label = "Enter";
+                    linux,code = <28>;
+                    gpios = <&pio 0 2 1>;
+                    debounce-interval = <20>;
+                };
+            };
+        };
+    };
+};
