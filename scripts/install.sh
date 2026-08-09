@@ -6,16 +6,16 @@ log() {
 }
 
 log "Fix apt"
-cat > /etc/apt/sources.list <<'EOF'
-deb http://archive.ubuntu.com/ubuntu focal main restricted universe multiverse
-deb http://archive.ubuntu.com/ubuntu focal-updates main restricted universe multiverse
-deb http://archive.ubuntu.com/ubuntu focal-backports main restricted universe multiverse
-deb http://security.ubuntu.com/ubuntu focal-security main restricted universe multiverse
+cat >/etc/apt/sources.list <<'EOF'
+deb http://ports.ubuntu.com/ubuntu-ports focal main restricted universe multiverse
+deb http://ports.ubuntu.com/ubuntu-ports focal-updates main restricted universe multiverse
+deb http://ports.ubuntu.com/ubuntu-ports focal-backports main restricted universe multiverse
+deb http://ports.ubuntu.com/ubuntu-ports focal-security main restricted universe multiverse
 
-deb-src http://archive.ubuntu.com/ubuntu focal main restricted universe multiverse
-deb-src http://archive.ubuntu.com/ubuntu focal-updates main restricted universe multiverse
-deb-src http://archive.ubuntu.com/ubuntu focal-backports main restricted universe multiverse
-deb-src http://security.ubuntu.com/ubuntu focal-security main restricted universe multiverse
+deb-src http://ports.ubuntu.com/ubuntu-ports focal main restricted universe multiverse
+deb-src http://ports.ubuntu.com/ubuntu-ports focal-updates main restricted universe multiverse
+deb-src http://ports.ubuntu.com/ubuntu-ports focal-backports main restricted universe multiverse
+deb-src http://ports.ubuntu.com/ubuntu-ports focal-security main restricted universe multiverse
 EOF
 
 log "Installing display"

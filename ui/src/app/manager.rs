@@ -1,9 +1,13 @@
 use crate::{
     app::{
-        App, AppError, apps::{AppCtlAppKind, build_app},
-    }, display::Display, key_event::{Key, KeyEvent, KeyEventType}, menu::{
+        App, AppError,
+        apps::{AppCtlAppKind, build_app},
+    },
+    display::Display,
+    key_event::{Key, KeyEvent, KeyEventType},
+    menu::{
         Menu, draw_line,
-        entries::{FocusController, MenuEntry},
+        entries::{FocusController, MenuEntry, list::List},
     },
 };
 use embedded_graphics::{
@@ -50,13 +54,6 @@ impl Manager {
         let mut display = Display::new().expect("Failed to create display");
         let mut key_events = KeyEvent::new().expect("Failed to create kb");
         let mut frame_timer = interval(Duration::from_secs_f32(1.0 / 30.0));
-
-        let id = self
-            .app_ctl
-            .try_lock()
-            .unwrap()
-            .spawn(AppCtlAppKind::Radio);
-        self.app_ctl.try_lock().unwrap().set_active(Some(id));
 
         loop {
             select! {
@@ -130,6 +127,10 @@ impl AppCtl {
         self.kill(id);
     }
 
+    fn get_info(&self, id: Id) -> Option<&AppInfo> {
+        self.apps.get(&id)
+    }
+
     fn get_active(&self) -> Option<Id> {
         self.active_app
     }
@@ -178,144 +179,121 @@ impl AppCtl {
     }
 }
 
+struct ListEntry<T: 'static + Send + Sync>(T, String);
+
+impl<T: 'static + Send + Sync, S: Into<String>> From<(T, S)> for ListEntry<T> {
+    fn from(value: (T, S)) -> Self {
+        Self(value.0, value.1.into())
+    }
+}
+
+impl<T: 'static + Send + Sync> std::fmt::Display for ListEntry<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.1)
+    }
+}
+
 struct RunAppMenuEntry {
     app_ctl: Arc<Mutex<AppCtl>>,
-    cursor: usize,
-    apps_kinds: &'static [AppCtlAppKind],
+    app_list: &'static [AppCtlAppKind],
+    list: List<&'static str, ListEntry<Option<AppCtlAppKind>>>,
 }
+
 impl RunAppMenuEntry {
     fn new(app_ctl: Arc<Mutex<AppCtl>>) -> Self {
+        let app_list: &'static [AppCtlAppKind] = &[AppCtlAppKind::Clock, AppCtlAppKind::Radio];
         Self {
+            list: List::new(
+                "Run",
+                [(None, "Back")]
+                    .into_iter()
+                    .chain(app_list.iter().map(|k| (Some(*k), k.as_ref())))
+                    .map(ListEntry::from)
+                    .collect(),
+            ),
+            app_list,
             app_ctl,
-            cursor: 0,
-            apps_kinds: &[AppCtlAppKind::Clock, AppCtlAppKind::Radio],
         }
     }
 }
 impl MenuEntry for RunAppMenuEntry {
     fn update(&mut self, parent: &mut dyn FocusController, key_event: KeyEventType) {
-        if parent.is_focused() {
-            match key_event {
-                KeyEventType::Press(key) | KeyEventType::Repeat(key) => match key {
-                    Key::Up if self.cursor > 0 => {
-                        self.cursor = self.cursor - 1;
-                    }
-                    Key::Down if self.cursor < self.apps_kinds.len() => {
-                        self.cursor = self.cursor + 1;
-                    }
-                    Key::Enter if self.cursor == 0 => {
-                        parent.release_focus();
-                    }
-                    Key::Enter => {
-                        let id = self
-                            .app_ctl
-                            .try_lock()
-                            .unwrap()
-                            .spawn(self.apps_kinds[self.cursor - 1]);
-                        self.app_ctl.try_lock().unwrap().set_active(Some(id));
-                        parent.release_focus();
-                    }
-                    _ => {}
-                },
-                _ => {}
-            }
-        } else {
-            if let KeyEventType::Press(Key::Enter) = key_event {
-                self.cursor = 0;
-                parent.grab_focus();
-            }
+        self.list.update(parent, key_event);
+        if let Some(ListEntry(Some(app_kind), _)) = self.list.value() {
+            self.app_ctl.try_lock().unwrap().spawn(*app_kind);
         }
     }
 
     fn render_line(&self, display: &mut Display, x: i32, y: i32) {
-        draw_line("Run", display, x, y);
+        self.list.render_line(display, x, y);
     }
 
     fn render(&self, display: &mut Display, x: i32, y: i32) {
-        for i in 0..=self.apps_kinds.len() {
-            if i == self.cursor {
-                draw_line("->", display, x, y + 20 * (i as i32 + 1));
-            }
-            let str = if i == 0 {
-                "Back"
-            } else {
-                &self.apps_kinds[i - 1].as_ref()
-            };
-            draw_line(str, display, x + 20, y + 20 * (i as i32 + 1));
-        }
+        self.list.render(display, x, y);
     }
 }
 
 struct TaskListMenuEntry {
     app_ctl: Arc<Mutex<AppCtl>>,
-    enters: Vec<(String, Id)>,
-    cursor: usize,
+    tasks_list: List<String, ListEntry<Option<Id>>>,
+    action_list: List<&'static str, ListEntry<usize>>,
+    current_task: Option<Id>,
 }
+
 impl TaskListMenuEntry {
     fn new(app_ctl: Arc<Mutex<AppCtl>>) -> Self {
         Self {
             app_ctl,
-            cursor: 0,
-            enters: Vec::new(),
+            tasks_list: List::new("".to_string(), Vec::new()),
+            action_list: List::new("", [(0, "Back"), (0, "Back"), (0, "Back")].into_iter().map(ListEntry::from).collect()),
+            current_task: None,
         }
     }
 }
 
 impl MenuEntry for TaskListMenuEntry {
     fn update(&mut self, parent: &mut dyn FocusController, key_event: KeyEventType) {
-        if parent.is_focused() {
-            match key_event {
-                KeyEventType::Press(key) | KeyEventType::Repeat(key) => match key {
-                    Key::Up if self.cursor > 0 => {
-                        self.cursor = self.cursor - 1;
-                    }
-                    Key::Down if self.cursor < self.enters.len() => {
-                        self.cursor = self.cursor + 1;
-                    }
-                    Key::Enter if self.cursor == 0 => {
-                        parent.release_focus();
-                    }
-                    Key::Enter => {
-                        parent.release_focus();
-                        self.app_ctl
-                            .try_lock()
-                            .unwrap()
-                            .set_active(Some(self.enters[self.cursor - 1].1));
-                    }
-                    _ => {}
-                },
-                _ => {}
+        if let Some(_current_task) = self.current_task {
+            self.action_list.update(parent, key_event);
+            if let Some(ListEntry(_action_id, _)) = self.action_list.value() {
+                self.current_task = None;
             }
         } else {
-            if let KeyEventType::Press(Key::Enter) = key_event {
-                self.enters = self
-                    .app_ctl
-                    .try_lock()
-                    .unwrap()
-                    .get_apps_list()
-                    .map(|(id, info)| (info.kind.as_ref().to_string(), *id))
-                    .collect();
+            if !parent.is_focused() {
+                if let KeyEventType::Press(Key::Enter) = key_event {
+                    self.tasks_list.set_entries(
+                        [(None, "Back".to_string())]
+                            .into_iter()
+                            .chain(self.app_ctl.try_lock().unwrap().get_apps_list().map(
+                                |(id, info)| {
+                                    (
+                                        Some(*id),
+                                        format!("{}: {}", info.kind.as_ref().to_string(), id),
+                                    )
+                                },
+                            ))
+                            .map(ListEntry::from)
+                            .collect(),
+                    );
+                }
+            }
+            self.tasks_list.update(parent, key_event);
+            if let Some(ListEntry(Some(app_id), _)) = self.tasks_list.value() {
                 parent.grab_focus();
-                self.cursor = 0;
+                self.current_task = Some(*app_id);
             }
         }
     }
 
     fn render_line(&self, display: &mut Display, x: i32, y: i32) {
-        draw_line("Tasks List", display, x, y);
+        draw_line("Task list", display, x, y);
     }
 
     fn render(&self, display: &mut Display, x: i32, y: i32) {
-        for i in 0..=self.enters.len() {
-            if i == self.cursor {
-                draw_line("->", display, x, y + 20 * (i as i32 + 1));
-            }
-            let str = if i == 0 {
-                "Back".to_string()
-            } else {
-                format!("{}: {}", self.enters[i - 1].0, self.enters[i - 1].1)
-            };
-            draw_line(&str, display, x + 20, y + 20 * (i as i32 + 1));
+        if self.current_task.is_none() {
+            self.tasks_list.render(display, x, y);
+        } else {
+            self.action_list.render(display, x, y);
         }
     }
 }

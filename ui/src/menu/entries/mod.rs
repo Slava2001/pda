@@ -4,6 +4,9 @@ pub mod label;
 pub mod value;
 pub mod submenu;
 pub mod select;
+pub mod button;
+pub mod dyn_label;
+pub mod list;
 
 pub trait FocusController {
     fn grab_focus(&mut self);
