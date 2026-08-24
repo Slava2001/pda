@@ -45,11 +45,17 @@ systemctl disable getty@tty1.service
 log "Update Env file"
 sed -ie 's/overlays=usbhost2 usbhost3/overlays=spi-tft gpio-keyboard i2c0 usbhost2 usbhost3/' /boot/pbsbc01h3Env.txt
 
+log "Create Env file backup"
+cp /boot/pbsbc01h3Env.txt /boot/pbsbc01h3Env.txt.bk
+
 log "Change host name"
 echo "pda" > /etc/hostname
 
 log "Change password"
 echo "root:root" | chpasswd
+
+log "Installing I2C tools"
+apt install i2c-tools
 
 log "----------------------------------------"
 log "-                 Done                 -"

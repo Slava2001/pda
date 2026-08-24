@@ -1,15 +1,11 @@
 #![allow(dead_code)]
 
-use crate::app::manager::Manager;
-
-mod display;
-mod key_event;
-mod app;
-mod menu;
-mod si4732;
+mod core;
+pub mod modules;
+use core::Core;
 
 #[tokio::main]
 async fn main() -> ! {
-    let app_manager = Manager::new();
-    app_manager.run().await
+    let core = Core::new();
+    core.run().await
 }

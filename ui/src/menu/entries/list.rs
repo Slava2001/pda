@@ -40,7 +40,7 @@ impl<T: AsRef<str> + Send + Sync, V: std::fmt::Display + Send + Sync> MenuEntry 
     fn update(&mut self, parent: &mut dyn FocusController, key_event: KeyEventType) {
         if parent.is_focused() {
             match key_event {
-                KeyEventType::Press(key) | KeyEventType::Repeat(key) => match key {
+                KeyEventType::Press(key) => match key {
                     Key::Up if self.cursor > 0 => {
                         self.cursor = self.cursor - 1;
                     }

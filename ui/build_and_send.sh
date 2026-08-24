@@ -1,9 +1,13 @@
 #!/bin/bash
 
 set -e
+IP=192.168.1.9
+USER=root
+PASSWORD=root
+
 cargo build --release --target arm-unknown-linux-gnueabihf
-sshpass -p root ssh root@192.168.1.24 'systemctl stop ui' || true
-sshpass -p root ssh root@192.168.1.24 'killall ui' || true
-sshpass -p root scp ./target/arm-unknown-linux-gnueabihf/release/ui root@192.168.1.24:/root
+sshpass -p $PASSWORD ssh $USER@$IP 'systemctl stop ui' || true
+sshpass -p $PASSWORD ssh $USER@$IP 'killall ui' || true
+sshpass -p $PASSWORD scp ./target/arm-unknown-linux-gnueabihf/release/ui $USER@$IP:/root
 cp ./target/arm-unknown-linux-gnueabihf/release/ui ../scripts/
-sshpass -p root ssh root@192.168.1.24 /root/ui
+sshpass -p $PASSWORD ssh $USER@$IP /root/ui
