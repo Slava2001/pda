@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -e
+# IP=192.168.1.9
 IP=192.168.1.9
 USER=root
 PASSWORD=root

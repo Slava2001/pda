@@ -3,7 +3,7 @@ use crate::core::{
     mid::{Mid, MidGenerator},
     module::Module,
 };
-use anyhow::{Result, ensure};
+use anyhow::{Context, Result, ensure};
 use std::{collections::HashMap, format, ops::Not, println};
 use tokio::task::{AbortHandle, JoinSet};
 
@@ -23,6 +23,7 @@ impl ModSet {
     }
 
     pub fn add(&mut self, if_mngr: IfMngr, mut module: Box<dyn Module>) -> Result<Mid> {
+        let mod_name = module.name().rsplit("::").next().context("Invalid module name")?;
         let handle = self.runs.spawn(async move { module.run(if_mngr).await });
         let mid = self.mid_gen.next();
         ensure!(
@@ -30,7 +31,7 @@ impl ModSet {
             "Failed to insert mid"
         );
         self.mid_map.insert(mid, handle);
-        println!("Module: {mid}, started");
+        println!("Module: {mod_name}, mid: {mid}, started");
         Ok(mid)
     }
 
@@ -46,7 +47,7 @@ impl ModSet {
             if v.id() == id {
                 println!("Module: {mid}, {event}");
             }
-            v.id() == id
+            v.id() != id
         });
         Ok(())
     }

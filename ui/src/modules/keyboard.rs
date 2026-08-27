@@ -1,5 +1,4 @@
 use std::sync::Arc;
-
 use crate::{
     core::{interface::IfMngr, module::Module},
     create_imc_interface,
@@ -60,12 +59,11 @@ impl Module for Keyboard {
 
         let mut keyboard =
             gpio::KeyEventStream::new().context("Failed to create gpio event stream")?;
-
-        loop {
-            select! {
-                _ = keyboard_if.poll() => {}
-                event = keyboard.next() => {
-                    tx.send(event).ok();
+            loop {
+                select! {
+                    _ = keyboard_if.poll() => {}
+                    event = keyboard.next() => {
+                        tx.send(event).ok();
                 }
             }
         }

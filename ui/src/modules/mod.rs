@@ -1,4 +1,8 @@
 pub mod display;
 pub mod init;
 pub mod keyboard;
-pub mod keyboard_test;
+pub mod common_test;
+pub mod power_ctrl;
+pub mod i2c;
+pub mod net_ctrl;
+pub mod meteo_sensor;
