@@ -6,3 +6,4 @@ pub mod power_ctrl;
 pub mod i2c;
 pub mod net_ctrl;
 pub mod meteo_sensor;
+pub mod system;

@@ -8,6 +8,7 @@ use crate::{
         meteo_sensor::MeteoSensorIf,
         net_ctrl::NetCtrlIf,
         power_ctrl::PowerCtrlIf,
+        system::SystemIf
     },
 };
 use anyhow::{Context, Result};
@@ -20,6 +21,7 @@ pub struct CommonTest {
     power_ctrl: PowerCtrlIf,
     net_ctrl: NetCtrlIf,
     meteo_sensor: MeteoSensorIf,
+    system: SystemIf
 }
 
 impl CommonTest {
@@ -47,12 +49,17 @@ impl CommonTest {
             .get("meteo_sensor")
             .await
             .context("Failed to get net controller interface")?;
+        let system = if_mngr
+            .get("system")
+            .await
+            .context("Failed to get system interface")?;
         Ok(Self {
             keys,
             display,
             power_ctrl,
             net_ctrl,
             meteo_sensor,
+            system
         })
     }
 }
@@ -70,6 +77,9 @@ impl Module for CommonTest {
             .await?;
         self.display
             .draw_line(format!("Meteo sensor:"), 6)
+            .await?;
+        self.display
+            .draw_line(format!("System:"), 10)
             .await?;
         self.display
             .flush()
@@ -104,14 +114,21 @@ impl Module for CommonTest {
                     self.display.draw_line(format!("Current: {:.4} A", current), 3)
                         .await?;
 
-                    let temperature = self.meteo_sensor.temperature().await?.context("Failed to get temperature")?;
+                    let temperature = self.meteo_sensor.temperature().await?;
                     self.display.draw_line(format!("Temperature: {:.1} *C", temperature), 7)
                         .await?;
 
-                    let pressure = self.meteo_sensor.pressure().await?.context("Failed to get pressure")?;
-                    self.display.draw_line(format!("Pressure: {} Pa", pressure), 8)
+                    let pressure_raw = self.meteo_sensor.pressure_raw().await?;
+                    self.display.draw_line(format!("Pressure_raw: {} Pa", pressure_raw), 8)
                         .await?;
 
+                    let pressure = self.meteo_sensor.pressure().await?;
+                    self.display.draw_line(format!("Pressure: {:.0} Pa", pressure), 9)
+                        .await?;
+
+                    let cpu_temp = self.system.cpu_temp().await?;
+                    self.display.draw_line(format!("CPU temp: {:.1} *C", cpu_temp), 11)
+                        .await?;
                 }
             }
 

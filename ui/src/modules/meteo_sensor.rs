@@ -3,16 +3,20 @@ use crate::create_imc_interface;
 use crate::modules::i2c::I2CIf;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
+use tokio::select;
+use tokio::time::interval;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::Mutex;
 
 /// Oversampling setting (0..=3). 0 = standard, 3 = ultra high resolution.
-const OSS: u8 = 0;
+const OSS: u8 = 3;
 
 create_imc_interface! {
     pub interface MeteoSensorIf {
-        fn temperature() -> Result<f32>;
-        fn pressure() -> Result<f32>;
+        fn temperature() -> f32;
+        fn pressure() -> f32;
+        fn pressure_raw() -> f32;
     }
 }
 
@@ -27,25 +31,35 @@ impl MeteoSensor {
 #[async_trait]
 impl Module for MeteoSensor {
     async fn run(&mut self, if_mngr: IfMngr) -> Result<()> {
+        let temp = Arc::new(Mutex::new(0.0 as f32));
+        let pres = Arc::new(Mutex::new(0.0 as f32));
+        let mut pres_filter = LowPass::new(0.1, 0.0);
+        let pres_filtered = Arc::new(Mutex::new(0.0 as f32));
+
         let i2c: I2CIf = if_mngr.get("i2c").await.context("Failed to get i2c if")?;
 
-        let bmp = bmp180::Bmp180::new(i2c)
+        let mut bmp = bmp180::Bmp180::new(i2c)
             .await
             .context("Failed to init BMP180")?;
-        let bmp = Arc::new(Mutex::new(bmp));
 
         let interface = MeteoSensorIfBackend::builder();
 
-        let bmp_t = bmp.clone();
+        let temp_c = temp.clone();
         let interface = interface.on_temperature(move || {
-            let bmp = bmp_t.clone();
-            async move { bmp.lock().await.temperature_c().await }
+            let temp = temp_c.clone();
+            async move { *temp.lock().await }
         });
 
-        let bmp_p = bmp.clone();
+        let pres_c = pres.clone();
+        let interface = interface.on_pressure_raw(move || {
+            let pres = pres_c.clone();
+            async move { *pres.lock().await }
+        });
+
+        let pres_filtered_c = pres_filtered.clone();
         let interface = interface.on_pressure(move || {
-            let bmp = bmp_p.clone();
-            async move { bmp.lock().await.pressure_pa(OSS).await }
+            let pres_filtered = pres_filtered_c.clone();
+            async move { *pres_filtered.lock().await }
         });
 
         let mut interface = interface
@@ -58,9 +72,38 @@ impl Module for MeteoSensor {
             .await
             .context("Failed to reg meteo sensor interface")?;
 
+        let mut timer = interval(Duration::from_millis(50));
         loop {
-            interface.poll().await;
+            select! {
+                _ = interface.poll() => {}
+                _ = timer.tick() => {
+                    *temp.lock().await = bmp.temperature_c().await.context("Failed to read temperature")?;
+                    let pres_tmp = bmp.pressure_pa(OSS).await.context("Failed to read pressure")?;
+                    *pres.lock().await = pres_tmp;
+                    *pres_filtered.lock().await = pres_filter.update(pres_tmp);
+                }
+
+            }
         }
+    }
+}
+
+pub struct LowPass {
+    value: f32,
+    alpha: f32,
+}
+
+impl LowPass {
+    pub fn new(alpha: f32, initial: f32) -> Self {
+        Self {
+            value: initial,
+            alpha,
+        }
+    }
+
+    pub fn update(&mut self, input: f32) -> f32 {
+        self.value += self.alpha * (input - self.value);
+        self.value
     }
 }
 
