@@ -1,9 +1,9 @@
-use std::time::Duration;
-use std::sync::Arc;
 use crate::core::{interface::IfMngr, module::Module};
 use crate::create_imc_interface;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
+use std::sync::Arc;
+use std::time::Duration;
 use tokio::select;
 use tokio::sync::Mutex;
 use tokio::time::interval;
@@ -31,9 +31,7 @@ impl Module for System {
         let temp_c = temperature.clone();
         let interface = interface.on_cpu_temp(move || {
             let temp = temp_c.clone();
-            async move {
-                *temp.lock().await
-            }
+            async move { *temp.lock().await }
         });
 
         let mut interface = interface
@@ -52,11 +50,11 @@ impl Module for System {
                 _ = interface.poll() => {}
                 _ = timer.tick() => {
                     const THERMAL_ZONE_PATH: &str = "/sys/class/thermal/thermal_zone0/temp";
-                    let raw = tokio::fs::read_to_string(THERMAL_ZONE_PATH).await
-                                .context("Failed to read cpu temp file")?;
-                    let millideg: i32 = raw.trim().parse()
-                                            .context("Failed to parse thermal zone value")?;
-                    *temperature.lock().await = millideg as f32 / 1000.0;
+                    if let Ok(raw) = tokio::fs::read_to_string(THERMAL_ZONE_PATH).await {
+                        let millideg: i32 = raw.trim().parse()
+                                                .context("Failed to parse thermal zone value")?;
+                        *temperature.lock().await = millideg as f32 / 1000.0;
+                    }
                 }
             }
         }

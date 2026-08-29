@@ -1,22 +1,18 @@
 pub mod entries;
-
 use crate::{
-    display::Display,
-    key_event::{Key, KeyEventType},
     menu::entries::{FocusController, MenuEntry},
-};
-use embedded_graphics::{
-    Drawable,
-    geometry::Point,
-    mono_font::{MonoTextStyle, ascii::FONT_10X20},
-    pixelcolor::{Rgb565, RgbColor},
-    text::Text,
+    modules::{
+        display::DisplayIf,
+        keyboard::{Key, KeyEvent},
+    },
 };
 
 pub struct Menu {
     enters: Vec<Box<dyn MenuEntry>>,
     cursor: usize,
     is_focused: bool,
+    offset: usize,
+    window: usize,
 }
 
 impl Menu {
@@ -25,11 +21,23 @@ impl Menu {
             enters: Vec::new(),
             cursor: 0,
             is_focused: false,
+            offset: 0,
+            window: 1,
         }
+    }
+
+    pub fn set_window(&mut self, w: usize) {
+        self.window = w.min(self.enters.len());
     }
 
     pub fn cursor(&self) -> usize {
         self.cursor
+    }
+
+    pub fn reset_state(&mut self) {
+        self.cursor = 0;
+        self.offset = 0;
+        self.is_focused = false;
     }
 
     pub fn add<T: MenuEntry + 'static>(mut self, entry: T) -> Self {
@@ -37,18 +45,24 @@ impl Menu {
         self
     }
 
-    pub fn update(&mut self, key_event: KeyEventType) {
+    pub async fn update(&mut self, key_event: KeyEvent) {
         if self.enters.is_empty() {
             return;
         }
         if !self.is_focused {
             match key_event {
-                KeyEventType::Press(key) | KeyEventType::Repeat(key) => match key {
+                KeyEvent::Press(key) | KeyEvent::Repeat(key) => match key {
                     Key::Up if self.cursor > 0 => {
                         self.cursor = self.cursor - 1;
+                        if self.cursor < self.offset {
+                            self.offset = self.cursor;
+                        }
                     }
                     Key::Down if self.cursor + 1 < self.enters.len() => {
                         self.cursor = self.cursor + 1;
+                        if self.cursor > self.offset + (self.window - 1) {
+                            self.offset = self.cursor - (self.window - 1);
+                        }
                     }
                     _ => {}
                 },
@@ -56,26 +70,31 @@ impl Menu {
             }
         }
         let mut focus_cntl = MenuFocusController(&mut self.is_focused);
-        self.enters[self.cursor].update(&mut focus_cntl as &mut dyn FocusController, key_event);
+        self.enters[self.cursor]
+            .update(&mut focus_cntl as &mut dyn FocusController, key_event)
+            .await;
     }
 
-    pub fn render(&self, display: &mut Display) {
+    pub async fn render(&self, display: &mut DisplayIf) {
         if self.is_focused {
-            self.enters[self.cursor].render(display, 0, 0);
+            self.enters[self.cursor].render(display).await;
         } else {
-            for (i, e) in self.enters.iter().enumerate() {
-                if i == self.cursor {
-                    draw_line("->", display, 0, 20 * (self.cursor as i32 + 1));
-                }
-                e.render_line(display, 20, 20 * (i as i32 + 1));
+            for (i, e) in self.enters[self.offset..self.offset + self.window]
+                .iter()
+                .enumerate()
+            {
+                let cursor = if i + self.offset == self.cursor {
+                    "->"
+                } else {
+                    "  "
+                };
+                display
+                    .draw_line(format!("{}{}", cursor, e.render_line().await), i)
+                    .await
+                    .ok();
             }
         }
     }
-}
-
-pub fn draw_line(text: &str, display: &mut Display, x: i32, y: i32) {
-    let style = MonoTextStyle::new(&FONT_10X20, Rgb565::WHITE);
-    Text::new(text, Point::new(x, y), style).draw(display).ok();
 }
 
 struct MenuFocusController<'a>(&'a mut bool);

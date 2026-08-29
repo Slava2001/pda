@@ -1,21 +1,32 @@
-use crate::{display::Display, key_event::KeyEventType};
+use crate::modules::{display::DisplayIf, keyboard::KeyEvent};
+use async_trait::async_trait;
 
-pub mod label;
-pub mod value;
-pub mod submenu;
-pub mod select;
 pub mod button;
 pub mod dyn_label;
+pub mod label;
 pub mod list;
+pub mod select;
+pub mod submenu;
+pub mod value;
 
-pub trait FocusController {
+pub trait FocusController: Sync + Send {
     fn grab_focus(&mut self);
     fn release_focus(&mut self);
     fn is_focused(&mut self) -> bool;
 }
 
+pub struct AlwaysFocused;
+impl FocusController for AlwaysFocused {
+    fn grab_focus(&mut self) {}
+    fn release_focus(&mut self) {}
+    fn is_focused(&mut self) -> bool {
+        true
+    }
+}
+
+#[async_trait]
 pub trait MenuEntry: Send + Sync {
-    fn update(&mut self, parent: &mut dyn FocusController, key_event: KeyEventType);
-    fn render_line(&self, display: &mut Display, x: i32, y: i32);
-    fn render(&self, display: &mut Display, x: i32, y: i32);
+    async fn update(&mut self, parent: &mut dyn FocusController, key_event: KeyEvent);
+    async fn render_line(&self) -> String;
+    async fn render(&self, display: &mut DisplayIf);
 }

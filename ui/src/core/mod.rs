@@ -3,8 +3,9 @@ use crate::{
     create_imc_interface,
     modules::init::Init,
 };
-use anyhow::Result;
 use tokio::select;
+use anyhow::Result;
+use std::sync::Arc;
 
 pub mod interface;
 pub mod mid;
@@ -14,9 +15,18 @@ pub mod module;
 use mid::Mid;
 use module::Module;
 
+#[derive(Clone)]
+pub enum CoreEvent {
+    ExitOk(Mid),
+    ExitErr(Mid),
+    Canceled(Mid)
+}
+
 create_imc_interface! {
     pub interface CoreIf {
         fn run(module: Box<dyn Module>) -> Result<Mid>;
+        fn kill(mid: Mid) -> Result<()>;
+        fn subscribe() -> tokio::sync::broadcast::Receiver<CoreEvent>;
     }
 }
 
@@ -50,15 +60,24 @@ impl Core {
         mods.add(if_mngr.clone(), init_module as Box<dyn Module>)
             .expect("Failed to run init module");
 
+        let event_tx = Arc::new(tokio::sync::broadcast::channel(10).0);
+
         loop {
             select! {
-                _ = mods.poll() => {}
+                Some(event) = mods.poll() => { event_tx.send(event).ok(); }
                 event = interface.poll_event() => {
                     match event {
                         CoreIfEvent::run(((module,), rc)) => {
                             let result = mods.add(if_mngr.clone(), module);
                             rc.send(result).ok();
                         },
+                        CoreIfEvent::kill(((mid,), rc)) => {
+                            let result = mods.kill(mid);
+                            rc.send(result).ok();
+                        }
+                        CoreIfEvent::subscribe(((), rc)) => {
+                            rc.send(event_tx.subscribe()).ok();
+                        }
                     }
                 }
             }

@@ -1,4 +1,10 @@
-use crate::{display::Display, key_event::{Key, KeyEventType}, menu::{Menu, draw_line, entries::{FocusController, MenuEntry, label::Label}}};
+use async_trait::async_trait;
+use crate::menu::Menu;
+use crate::menu::entries::MenuEntry;
+use crate::menu::entries::label::Label;
+use crate::modules::display::DisplayIf;
+use crate::modules::keyboard::Key;
+use crate::{menu::entries::FocusController, modules::keyboard::KeyEvent};
 
 pub struct SubMenu {
     name: String,
@@ -16,28 +22,29 @@ impl SubMenu {
     }
 }
 
+#[async_trait]
 impl MenuEntry for SubMenu {
-    fn update(&mut self, parent: &mut dyn FocusController, key_event: KeyEventType) {
+    async fn update(&mut self, parent: &mut dyn FocusController, key_event: KeyEvent) {
         if parent.is_focused() {
-            if let KeyEventType::Press(Key::Enter) = key_event {
+            if let KeyEvent::Press(Key::Enter) = key_event {
                 if self.base.cursor == 0 {
                     parent.release_focus();
                     return;
                 }
             }
-            self.base.update(key_event);
+            self.base.update(key_event).await;
         } else {
-            if let KeyEventType::Press(Key::Enter) = key_event {
+            if let KeyEvent::Press(Key::Enter) = key_event {
                 parent.grab_focus();
             }
         }
     }
 
-    fn render_line(&self, display: &mut Display, x: i32, y: i32) {
-        draw_line(&self.name, display, x, y);
+    async fn render_line(&self) -> String {
+        self.name.clone()
     }
 
-    fn render(&self, display: &mut Display, _x: i32, _y: i32) {
-        self.base.render(display);
+    async fn render(&self, display: &mut DisplayIf) {
+        self.base.render(display).await;
     }
 }

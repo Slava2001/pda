@@ -1,10 +1,12 @@
+use std::time::Duration;
+
 use crate::{
-    core::{CoreIf, interface::IfMngr, module::Module}, modules::{
-        common_test::CommonTest, display::Display, i2c::I2C, keyboard::Keyboard, meteo_sensor::MeteoSensor, net_ctrl::NetCtrl, power_ctrl::PowerCtrl, system::System,
-    },
+    core::{CoreIf, interface::IfMngr, module::Module},
+    modules::build_module
 };
 use anyhow::Result;
 use async_trait::async_trait;
+use tokio::time::sleep;
 
 pub struct Init {}
 
@@ -19,33 +21,24 @@ impl Module for Init {
     async fn run(&mut self, if_mngr: IfMngr) -> Result<()> {
         let mut core_if: CoreIf = if_mngr.get("core").await?;
 
-        let module = System::build(if_mngr.clone()).await?;
-        core_if.run(Box::new(module)).await??;
+        let modules = &[
+            ("I2C", None),
+            ("NetCtrl", Some(1)),
+            ("System", None),
+            ("MeteoSensor", None),
+            ("PowerCtrl", None),
+            ("Display", None),
+            ("Keyboard", Some(1)),
+            ("Desktop", None),
+        ];
 
-        let module = I2C::build(if_mngr.clone()).await?;
-        core_if.run(Box::new(module)).await??;
-
-        let module = NetCtrl::build(if_mngr.clone()).await?;
-        core_if.run(Box::new(module)).await??;
-
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-
-        let module = MeteoSensor::build(if_mngr.clone()).await?;
-        core_if.run(Box::new(module)).await??;
-
-        let module = PowerCtrl::build(if_mngr.clone()).await?;
-        core_if.run(Box::new(module)).await??;
-
-        let module = Display::build(if_mngr.clone()).await?;
-        core_if.run(Box::new(module)).await??;
-
-        let module = Keyboard::build(if_mngr.clone()).await?;
-        core_if.run(Box::new(module)).await??;
-
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-
-        let module = CommonTest::build(if_mngr.clone()).await?;
-        core_if.run(Box::new(module)).await??;
+        for (module, delay) in modules {
+            let module = build_module(module, if_mngr.clone()).await?;
+            core_if.run(module).await??;
+            if let Some(delay) = delay {
+                sleep(Duration::from_secs(*delay)).await;
+            }
+        }
         Ok(())
     }
 }

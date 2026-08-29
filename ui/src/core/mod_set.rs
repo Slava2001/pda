@@ -1,11 +1,19 @@
 use crate::core::{
+    CoreEvent,
     interface::IfMngr,
     mid::{Mid, MidGenerator},
     module::Module,
 };
-use anyhow::{Context, Result, ensure};
-use std::{collections::HashMap, format, ops::Not, println};
+use anyhow::{Context, Error, Result, bail, ensure};
+use std::{collections::HashMap, ops::Not, println};
 use tokio::task::{AbortHandle, JoinSet};
+
+#[derive(Debug)]
+enum ModSetEvent {
+    ExitOk,
+    ExitErr(Error),
+    Canceled,
+}
 
 pub struct ModSet {
     runs: JoinSet<Result<()>>,
@@ -23,7 +31,11 @@ impl ModSet {
     }
 
     pub fn add(&mut self, if_mngr: IfMngr, mut module: Box<dyn Module>) -> Result<Mid> {
-        let mod_name = module.name().rsplit("::").next().context("Invalid module name")?;
+        let mod_name = module
+            .name()
+            .rsplit("::")
+            .next()
+            .context("Invalid module name")?;
         let handle = self.runs.spawn(async move { module.run(if_mngr).await });
         let mid = self.mid_gen.next();
         ensure!(
@@ -35,20 +47,35 @@ impl ModSet {
         Ok(mid)
     }
 
-    pub async fn poll(&mut self) -> Result<()> {
+    pub fn kill(&mut self, mid: Mid) -> Result<()> {
+        let Some(handle) = self.mid_map.get(&mid) else {
+            bail!(Error::msg("module not found"));
+        };
+        handle.abort();
+        Ok(())
+    }
+
+    pub async fn poll(&mut self) -> Option<CoreEvent> {
         let (id, event) = match self.runs.join_next_with_id().await {
-            Some(Ok((id, Ok(())))) => (id, format!("finished")),
-            Some(Ok((id, err))) => (id, format!("return error: {err:?}")),
-            Some(Err(err)) => (err.id(), format!("panicked or canceled")),
-            None => return Ok(()),
+            Some(Ok((id, Ok(())))) => (id, ModSetEvent::ExitOk),
+            Some(Ok((id, Err(err)))) => (id, ModSetEvent::ExitErr(err)),
+            Some(Err(err)) => (err.id(), ModSetEvent::Canceled),
+            None => return None,
         };
 
+        let mut found_mid = None;
         self.mid_map.retain(|mid, v| {
             if v.id() == id {
-                println!("Module: {mid}, {event}");
+                found_mid = Some(*mid);
+                println!("Module: {mid}, {event:?}");
             }
             v.id() != id
         });
-        Ok(())
+        let mid = found_mid.expect("Unexpected error: module not found: tid: {id}");
+        Some(match event {
+            ModSetEvent::ExitOk => CoreEvent::ExitOk(mid),
+            ModSetEvent::ExitErr(_) => CoreEvent::ExitErr(mid),
+            ModSetEvent::Canceled => CoreEvent::Canceled(mid),
+        })
     }
 }

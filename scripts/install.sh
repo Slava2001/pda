@@ -55,7 +55,10 @@ log "Change password"
 echo "root:root" | chpasswd
 
 log "Installing I2C tools"
-apt install i2c-tools
+apt install i2c-tools -y
+
+log "Installing java"
+apt install openjdk-11-jre -y
 
 log "----------------------------------------"
 log "-                 Done                 -"

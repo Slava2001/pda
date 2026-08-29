@@ -1,80 +1,67 @@
-use crate::{
-    display::Display, key_event::{Key, KeyEventType}, menu::{
-        draw_line,
-        entries::{FocusController, MenuEntry},
-    },
-};
+use std::format;
 
-pub struct List<T: AsRef<str>, V: std::fmt::Display + Send + Sync> {
+use crate::menu::Menu;
+use crate::menu::entries::MenuEntry;
+use crate::menu::entries::label::Label;
+use crate::modules::display::DisplayIf;
+use crate::modules::keyboard::Key;
+use crate::{menu::entries::FocusController, modules::keyboard::KeyEvent};
+use async_trait::async_trait;
+
+pub struct List<CB: Send + Sync + FnMut(&V) -> (), T: AsRef<str>, V: std::fmt::Display + Send + Sync> {
     text: T,
     entries: Vec<V>,
-    cursor: usize,
-    is_selected: bool
+    cb: CB,
+    base: Menu
 }
 
-impl<T: AsRef<str>, V: std::fmt::Display + Send + Sync> List<T, V> {
-    pub fn new(text: T, entries: Vec<V>) -> Self {
-        Self {
-            text: text.into(),
-            entries,
-            cursor: 0,
-            is_selected: false
-        }
+impl<CB: Send + Sync + FnMut(&V) -> (), T: AsRef<str>, V: std::fmt::Display + Send + Sync> List<CB, T, V> {
+    pub fn new(text: T, entries: Vec<V>, cb: CB) -> Self {
+        let mut list = Self {
+            text,
+            entries: Vec::new(),
+            cb,
+            base: Menu::new()
+        };
+        list.set_entries(entries);
+        list
+    }
+
+    pub fn set_window(&mut self, w: usize) {
+        self.base.set_window(w);
     }
 
     pub fn set_entries(&mut self, entries: Vec<V>) {
         self.entries = entries;
-        self.cursor = 0;
-    }
-
-    pub fn value(&self) -> Option<&V> {
-        if self.is_selected {
-            Some(&self.entries[self.cursor])
-        } else {
-            None
+        let mut base = Menu::new();
+        for e in &self.entries {
+            base = base.add(Label::new(&format!("{e}")));
         }
+        self.base = base;
     }
 }
 
-impl<T: AsRef<str> + Send + Sync, V: std::fmt::Display + Send + Sync> MenuEntry for List<T, V> {
-    fn update(&mut self, parent: &mut dyn FocusController, key_event: KeyEventType) {
+#[async_trait]
+impl<CB: Send + Sync + FnMut(&V) -> (), T: AsRef<str> + Send + Sync, V: std::fmt::Display + Send + Sync> MenuEntry for List<CB, T, V> {
+    async fn update(&mut self, parent: &mut dyn FocusController, key_event: KeyEvent) {
         if parent.is_focused() {
-            match key_event {
-                KeyEventType::Press(key) => match key {
-                    Key::Up if self.cursor > 0 => {
-                        self.cursor = self.cursor - 1;
-                    }
-                    Key::Down if self.cursor + 1 < self.entries.len() => {
-                        self.cursor = self.cursor + 1;
-                    }
-                    Key::Enter => {
-                        self.is_selected = true;
-                        parent.release_focus();
-                    }
-                    _ => {}
-                },
-                _ => {}
+            self.base.update(key_event).await;
+            if let KeyEvent::Press(Key::Enter) = key_event {
+                (self.cb)(&self.entries[self.base.cursor()]);
+                self.base.reset_state();
             }
         } else {
-            if let KeyEventType::Press(Key::Enter) = key_event {
+            if let KeyEvent::Press(Key::Enter) = key_event {
                 parent.grab_focus();
-                self.cursor = 0;
             }
-            self.is_selected = false;
         }
     }
 
-    fn render_line(&self, display: &mut Display, x: i32, y: i32) {
-        draw_line(self.text.as_ref(), display, x, y);
+    async fn render_line(&self) -> String {
+        self.text.as_ref().to_string()
     }
 
-    fn render(&self, display: &mut Display, x: i32, y: i32) {
-        for i in 0..self.entries.len() {
-            if i == self.cursor {
-                draw_line("->", display, x, y + 20 * (i as i32 + 1));
-            }
-            let str = &format!("{}", self.entries[i]);
-            draw_line(str, display, x + 20, y + 20 * (i as i32 + 1));
-        }
+    async fn render(&self, display: &mut DisplayIf) {
+        self.base.render(display).await
     }
 }

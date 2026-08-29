@@ -1,9 +1,10 @@
-use crate::{
-    display::Display, key_event::{Key, KeyEventType}, menu::{
-        draw_line,
-        entries::{FocusController, MenuEntry},
-    },
-};
+use std::format;
+
+use async_trait::async_trait;
+use crate::menu::entries::MenuEntry;
+use crate::modules::display::DisplayIf;
+use crate::modules::keyboard::Key;
+use crate::{menu::entries::FocusController, modules::keyboard::KeyEvent};
 
 pub struct Select<T: std::fmt::Display + Send + Sync> {
     name: String,
@@ -21,10 +22,11 @@ impl<T: std::fmt::Display + Send + Sync> Select<T> {
     }
 }
 
+#[async_trait]
 impl<T: std::fmt::Display + Send + Sync> MenuEntry for Select<T> {
-    fn update(&mut self, _parent: &mut dyn FocusController, key_event: KeyEventType) {
+    async fn update(&mut self, _parent: &mut dyn FocusController, key_event: KeyEvent) {
         match key_event {
-            KeyEventType::Press(key) | KeyEventType::Repeat(key) => match key {
+            KeyEvent::Press(key) | KeyEvent::Repeat(key) => match key {
                 Key::Left if self.value > 0 => {
                     self.value = self.value - 1;
                 }
@@ -37,9 +39,9 @@ impl<T: std::fmt::Display + Send + Sync> MenuEntry for Select<T> {
         }
     }
 
-    fn render_line(&self, display: &mut Display, x: i32, y: i32) {
-        draw_line(&format!("{}: {}", self.name, self.values[self.value]), display, x, y);
+    async fn render_line(&self) -> String {
+        format!("{}: {}", self.name, self.values[self.value])
     }
 
-    fn render(&self, _display: &mut Display, _x: i32, _y: i32) {}
+    async fn render(&self, _display: &mut DisplayIf) {}
 }

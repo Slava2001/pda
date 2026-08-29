@@ -1,6 +1,11 @@
+use std::format;
 use std::ops::{Add, Sub};
 
-use crate::{display::Display, key_event::{Key, KeyEventType}, menu::{draw_line, entries::{FocusController, MenuEntry}}};
+use async_trait::async_trait;
+use crate::menu::entries::MenuEntry;
+use crate::modules::display::DisplayIf;
+use crate::modules::keyboard::Key;
+use crate::{menu::entries::FocusController, modules::keyboard::KeyEvent};
 
 pub struct Value<T: std::fmt::Display + Send + Sync, C: FnMut(T) -> ()> {
     name: String,
@@ -17,10 +22,11 @@ impl<T: std::fmt::Display + Send + Sync, C: FnMut(T) -> ()> Value<T, C> {
     }
 }
 
+#[async_trait]
 impl<T: std::fmt::Display + Send + Sync + Add<Output = T> + Sub<Output = T> + PartialOrd + Copy, C: FnMut(T) -> () + Send + Sync> MenuEntry for Value<T, C> {
-    fn update(&mut self, _parent: &mut dyn FocusController, key_event: KeyEventType) {
+    async fn update(&mut self, _parent: &mut dyn FocusController, key_event: KeyEvent) {
         match key_event {
-            KeyEventType::Press(key) | KeyEventType::Repeat(key) => {
+            KeyEvent::Press(key) | KeyEvent::Repeat(key) => {
                 match key {
                     Key::Left if self.value >= self.min + self.step => {
                         self.value = self.value - self.step;
@@ -37,10 +43,10 @@ impl<T: std::fmt::Display + Send + Sync + Add<Output = T> + Sub<Output = T> + Pa
         }
     }
 
-    fn render_line(&self, display: &mut Display, x: i32, y: i32) {
-        draw_line(&format!("{}: {:.2}", self.name, self.value), display, x, y);
+    async fn render_line(&self) -> String {
+        format!("{}: {:.2}", self.name, self.value)
     }
 
-    fn render(&self, _display: &mut Display, _x: i32, _y: i32) {
+    async fn render(&self, _display: &mut DisplayIf) {
     }
 }

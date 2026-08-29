@@ -1,4 +1,7 @@
-use crate::{display::Display, key_event::KeyEventType, menu::{draw_line, entries::{FocusController, MenuEntry}}};
+use async_trait::async_trait;
+use crate::menu::entries::MenuEntry;
+use crate::modules::display::DisplayIf;
+use crate::{menu::entries::FocusController, modules::keyboard::KeyEvent};
 
 pub struct DynLabel<T: Fn() -> String> {
     cb: T
@@ -10,14 +13,15 @@ impl<T: Fn() -> String> DynLabel<T> {
     }
 }
 
+#[async_trait]
 impl<T: Fn() -> String + Send + Sync> MenuEntry for DynLabel<T> {
-    fn update(&mut self, _parent: &mut dyn FocusController, _key_event: KeyEventType) {
+    async fn update(&mut self, _parent: &mut dyn FocusController, _key_event: KeyEvent) {
     }
 
-    fn render_line(&self, display: &mut Display, x: i32, y: i32) {
-        draw_line(&(self.cb)(), display, x, y);
+    async fn render_line(&self) -> String {
+        (self.cb)()
     }
 
-    fn render(&self, _display: &mut Display, _x: i32, _y: i32) {
+    async fn render(&self, _display: &mut DisplayIf) {
     }
 }

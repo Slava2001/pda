@@ -5,7 +5,13 @@ use crate::{
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use embedded_graphics::{
-    Drawable, draw_target::DrawTarget, geometry::{Point, Size}, mono_font::{MonoTextStyle, ascii::FONT_10X20}, pixelcolor::{Rgb565, RgbColor}, primitives::{Primitive, PrimitiveStyle, Rectangle}, text::Text,
+    Drawable,
+    draw_target::DrawTarget,
+    geometry::{Point, Size},
+    mono_font::{MonoTextStyle, ascii::FONT_10X20},
+    pixelcolor::{Rgb565, RgbColor},
+    primitives::{Primitive, PrimitiveStyle, Rectangle},
+    text::Text,
 };
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -13,6 +19,7 @@ use tokio::sync::Mutex;
 create_imc_interface! {
     pub interface DisplayIf {
         fn draw_line(text: String, line: usize);
+        fn text_mode_size()->(usize, usize);
         fn clear();
         fn flush();
     }
@@ -78,6 +85,13 @@ impl Module for Display {
             }
         });
 
+        builder = builder.on_text_mode_size(move || async move {
+            (
+                tft::WIDTH / FONT_10X20.character_size.width as usize,
+                tft::HEIGHT / FONT_10X20.character_size.height as usize,
+            )
+        });
+
         let mut display_if = builder
             .build()
             .context("Failed to build display interface")?;
@@ -98,7 +112,7 @@ mod tft {
     use embedded_graphics::Pixel;
     use embedded_graphics::draw_target::DrawTarget;
     use embedded_graphics::geometry::{OriginDimensions, Size};
-    use embedded_graphics::pixelcolor::{Rgb565, IntoStorage};
+    use embedded_graphics::pixelcolor::{IntoStorage, Rgb565};
     use memmap2::{MmapMut, MmapOptions};
     use std::fs::File;
     use std::os::fd::AsRawFd;

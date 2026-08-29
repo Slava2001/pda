@@ -1,4 +1,8 @@
-use crate::{display::Display, key_event::{Key, KeyEventType}, menu::{draw_line, entries::{FocusController, MenuEntry}}};
+use async_trait::async_trait;
+use crate::menu::entries::MenuEntry;
+use crate::modules::display::DisplayIf;
+use crate::modules::keyboard::Key;
+use crate::{menu::entries::FocusController, modules::keyboard::KeyEvent};
 
 pub struct Button<T: FnMut() -> ()> {
     text: String,
@@ -11,17 +15,18 @@ impl<T: FnMut() -> ()> Button<T> {
     }
 }
 
+#[async_trait]
 impl<T: FnMut() -> () + Send + Sync> MenuEntry for Button<T> {
-    fn update(&mut self, _parent: &mut dyn FocusController, key_event: KeyEventType) {
-        if let KeyEventType::Press(Key::Enter) = key_event {
+    async fn update(&mut self, _parent: &mut dyn FocusController, key_event: KeyEvent) {
+        if let KeyEvent::Press(Key::Enter) = key_event {
             (self.cb)();
         }
     }
 
-    fn render_line(&self, display: &mut Display, x: i32, y: i32) {
-        draw_line(&self.text, display, x, y);
+    async fn render_line(&self) -> String {
+        self.text.clone()
     }
 
-    fn render(&self, _display: &mut Display, _x: i32, _y: i32) {
+    async fn render(&self, _display: &mut DisplayIf) {
     }
 }

@@ -1,7 +1,10 @@
-use crate::{display::Display, key_event::KeyEventType, menu::{draw_line, entries::{FocusController, MenuEntry}}};
+use async_trait::async_trait;
+use crate::menu::entries::MenuEntry;
+use crate::modules::display::DisplayIf;
+use crate::{menu::entries::FocusController, modules::keyboard::KeyEvent};
 
 pub struct Label {
-    text: String
+    text: String,
 }
 
 impl Label {
@@ -10,14 +13,13 @@ impl Label {
     }
 }
 
+#[async_trait]
 impl MenuEntry for Label {
-    fn update(&mut self, _parent: &mut dyn FocusController, _key_event: KeyEventType) {
+    async fn update(&mut self, _parent: &mut dyn FocusController, _key_event: KeyEvent) {}
+
+    async fn render_line(&self) -> String {
+        self.text.clone()
     }
 
-    fn render_line(&self, display: &mut Display, x: i32, y: i32) {
-        draw_line(&self.text, display, x, y);
-    }
-
-    fn render(&self, _display: &mut Display, _x: i32, _y: i32) {
-    }
+    async fn render(&self, _display: &mut DisplayIf) {}
 }
