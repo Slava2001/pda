@@ -44,7 +44,8 @@ impl Module for NetCtrl {
             .context("Failed to reg net controller interface")?;
 
         loop {
-            interface.poll().await;
+            let event = interface.poll_event().await;
+            interface.handle_event(event).await;
         }
     }
 }

@@ -5,7 +5,7 @@ use crate::core::{
     module::Module,
 };
 use anyhow::{Context, Error, Result, bail, ensure};
-use std::{collections::HashMap, ops::Not, println};
+use std::{collections::HashMap, fmt::Display, ops::Not, println};
 use tokio::task::{AbortHandle, JoinSet};
 
 #[derive(Debug)]
@@ -13,6 +13,23 @@ enum ModSetEvent {
     ExitOk,
     ExitErr(Error),
     Canceled,
+}
+
+impl Display for ModSetEvent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ModSetEvent::ExitOk => write!(f, "ExitOk"),
+            ModSetEvent::ExitErr(error) => write!(
+                f,
+                "ExitError: \n{}",
+                error
+                    .chain().enumerate()
+                    .map(|(i, e)| format!("{i}) {e}\n"))
+                    .collect::<String>()
+            ),
+            ModSetEvent::Canceled => write!(f, "Canceled"),
+        }
+    }
 }
 
 pub struct ModSet {
@@ -67,7 +84,7 @@ impl ModSet {
         self.mid_map.retain(|mid, v| {
             if v.id() == id {
                 found_mid = Some(*mid);
-                println!("Module: {mid}, {event:?}");
+                println!("Module: {mid}, {event}");
             }
             v.id() != id
         });

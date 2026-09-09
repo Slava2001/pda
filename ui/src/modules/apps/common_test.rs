@@ -71,15 +71,15 @@ impl Module for CommonTest {
         self.display
             .draw_line(format!("Power controller:"), 1)
             .await?;
-        self.display.draw_line(format!("Keyboard Test:"), 4).await?;
+        self.display.draw_line(format!("Keyboard Test:"), 5).await?;
         self.display
-            .draw_line(format!("Press any button..."), 5)
+            .draw_line(format!("Press any button..."), 6)
             .await?;
         self.display
-            .draw_line(format!("Meteo sensor:"), 6)
+            .draw_line(format!("Meteo sensor:"), 7)
             .await?;
         self.display
-            .draw_line(format!("System:"), 10)
+            .draw_line(format!("System:"), 11)
             .await?;
         self.display
             .flush()
@@ -106,28 +106,32 @@ impl Module for CommonTest {
                     self.display.draw_line(format!("IP: {}", ip), 0)
                         .await?;
 
-                    let voltage = self.power_ctrl.voltage().await?.context("Failed to get voltage")?;
+                    let voltage = self.power_ctrl.get_voltage().await?.context("Failed to get voltage")?;
                     self.display.draw_line(format!("Voltage: {:.4} V", voltage), 2)
                         .await?;
 
-                    let current = self.power_ctrl.current().await?.context("Failed to get current")?;
+                    let current = self.power_ctrl.get_current().await?.context("Failed to get current")?;
                     self.display.draw_line(format!("Current: {:.4} A", current), 3)
                         .await?;
 
+                    let charge = self.power_ctrl.get_charge().await?.context("Failed to get charge")?;
+                    self.display.draw_line(format!("Charge: {:.0} %", charge), 4)
+                        .await?;
+
                     let temperature = self.meteo_sensor.temperature().await?;
-                    self.display.draw_line(format!("Temperature: {:.1} *C", temperature), 7)
+                    self.display.draw_line(format!("Temperature: {:.1} *C", temperature), 8)
                         .await?;
 
                     let pressure_raw = self.meteo_sensor.pressure_raw().await?;
-                    self.display.draw_line(format!("Pressure_raw: {} Pa", pressure_raw), 8)
+                    self.display.draw_line(format!("Pressure_raw: {} Pa", pressure_raw), 9)
                         .await?;
 
                     let pressure = self.meteo_sensor.pressure().await?;
-                    self.display.draw_line(format!("Pressure: {:.0} Pa", pressure), 9)
+                    self.display.draw_line(format!("Pressure: {:.0} Pa", pressure), 10)
                         .await?;
 
                     let cpu_temp = self.system.cpu_temp().await?;
-                    self.display.draw_line(format!("CPU temp: {:.1} *C", cpu_temp), 11)
+                    self.display.draw_line(format!("CPU temp: {:.1} *C", cpu_temp), 12)
                         .await?;
                 }
             }

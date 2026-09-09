@@ -27,6 +27,14 @@ impl<CB: Send + Sync + FnMut(&V) -> (), T: AsRef<str>, V: std::fmt::Display + Se
         list
     }
 
+    pub fn current_val(&self) -> &V {
+        &self.entries[self.base.cursor()]
+    }
+
+    pub fn cursor(&self) -> usize {
+        self.base.cursor()
+    }
+
     pub fn set_window(&mut self, w: usize) {
         self.base.set_window(w);
     }

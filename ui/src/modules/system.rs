@@ -47,7 +47,9 @@ impl Module for System {
         let mut timer = interval(Duration::from_secs_f32(0.5));
         loop {
             select! {
-                _ = interface.poll() => {}
+                event = interface.poll_event() => {
+                    interface.handle_event(event).await;
+                }
                 _ = timer.tick() => {
                     const THERMAL_ZONE_PATH: &str = "/sys/class/thermal/thermal_zone0/temp";
                     if let Ok(raw) = tokio::fs::read_to_string(THERMAL_ZONE_PATH).await {

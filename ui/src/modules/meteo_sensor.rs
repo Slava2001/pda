@@ -1,6 +1,7 @@
 use crate::core::{interface::IfMngr, module::Module};
 use crate::create_imc_interface;
 use crate::modules::i2c::I2CIf;
+use crate::utils::filter::LowPass;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use tokio::select;
@@ -75,7 +76,9 @@ impl Module for MeteoSensor {
         let mut timer = interval(Duration::from_millis(50));
         loop {
             select! {
-                _ = interface.poll() => {}
+                event = interface.poll_event() => {
+                    interface.handle_event(event).await;
+                }
                 _ = timer.tick() => {
                     *temp.lock().await = bmp.temperature_c().await.context("Failed to read temperature")?;
                     let pres_tmp = bmp.pressure_pa(OSS).await.context("Failed to read pressure")?;
@@ -85,25 +88,6 @@ impl Module for MeteoSensor {
 
             }
         }
-    }
-}
-
-pub struct LowPass {
-    value: f32,
-    alpha: f32,
-}
-
-impl LowPass {
-    pub fn new(alpha: f32, initial: f32) -> Self {
-        Self {
-            value: initial,
-            alpha,
-        }
-    }
-
-    pub fn update(&mut self, input: f32) -> f32 {
-        self.value += self.alpha * (input - self.value);
-        self.value
     }
 }
 

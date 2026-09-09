@@ -191,10 +191,10 @@ macro_rules! create_imc_interface {
                     self.self_if.clone()
                 }
 
-                pub async fn poll(&mut self) {
-                    tokio::select! {
+                pub async fn handle_event(&mut self, event: [<$name Event>]) {
+                    match event {
                         $(
-                            Some((($($arg,)*), rc)) = self.[<$method _channel>].recv() => {
+                            [<$name Event>]::$method((($($arg,)*), rc)) => {
                                 if let Some(cb) = self.[<$method _cb>].as_mut() {
                                     let result = cb($($arg),*).await;
                                     let _ = rc.send(result);
@@ -245,11 +245,11 @@ macro_rules! create_imc_interface {
                         rc_tx
                     ))
                     .await
-                    .context("Failed to send request")?;
+                    .context(concat!("Failed to send request for ", stringify!($method)))?;
 
                 rc_rx
                     .await
-                    .context("Failed to receive response")
+                    .context(concat!("Failed to receive response for ", stringify!($method)))
             }
         }
     };

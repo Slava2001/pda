@@ -1,6 +1,7 @@
 use crate::core::{interface::IfMngr, module::Module};
 use crate::create_imc_interface;
 use crate::modules::i2c::I2CIf;
+use crate::utils::filter::LowPass;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use ina219::AsyncIna219;
@@ -11,12 +12,15 @@ use ina219::configuration::{
 };
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::select;
 use tokio::sync::Mutex;
+use tokio::time::interval;
 
 create_imc_interface! {
     pub interface PowerCtrlIf {
-        fn voltage() -> Result<f32>;
-        fn current() -> Result<f32>;
+        fn get_charge() -> Result<f32>;
+        fn get_voltage() -> Result<f32>;
+        fn get_current() -> Result<f32>;
     }
 }
 
@@ -59,8 +63,29 @@ impl Module for PowerCtrl {
 
         let ina = Arc::new(Mutex::new(ina));
         let interface = PowerCtrlIfBackend::builder();
+        let get_charge = |voltage: f32| -> f32 {
+            const MAX_VOLTAGE: f32 = 4.05;
+            const MIN_VOLTAGE: f32 = 3.20;
+            let charge =
+                0.0 + (100.0 - 0.0) * (voltage - MIN_VOLTAGE) / (MAX_VOLTAGE - MIN_VOLTAGE);
+            charge.clamp(1.0, 100.0)
+        };
+        let voltage = ina
+            .lock()
+            .await
+            .bus_voltage()
+            .await
+            .map_err(|e| anyhow::Error::msg(format!("{e}")))?
+            .voltage_mv() as f32
+            / 1_000.0;
+        let charge = Arc::new(Mutex::new(LowPass::new(0.05, get_charge(voltage))));
+        let charge_c = charge.clone();
+        let interface = interface.on_get_charge(move || {
+            let charge = charge_c.clone();
+            async move { Ok(charge.lock().await.value()) }
+        });
         let ina_c = ina.clone();
-        let interface = interface.on_voltage(move || {
+        let interface = interface.on_get_voltage(move || {
             let ina = ina_c.clone();
             async move {
                 Ok(ina
@@ -73,8 +98,9 @@ impl Module for PowerCtrl {
                     / 1_000.0)
             }
         });
-        let interface = interface.on_current(move || {
-            let ina = ina.clone();
+        let ina_c = ina.clone();
+        let interface = interface.on_get_current(move || {
+            let ina = ina_c.clone();
             async move {
                 Ok(ina
                     .lock()
@@ -95,9 +121,24 @@ impl Module for PowerCtrl {
             .reg("power_ctrl", move || interface_front.clone())
             .await
             .context("Failed to reg power controller interface")?;
-
+        let mut timer = interval(Duration::from_secs(1));
         loop {
-            interface.poll().await;
+            select! {
+                event = interface.poll_event() => {
+                    interface.handle_event(event).await;
+                }
+                _ = timer.tick() => {
+                    let voltage = ina
+                        .lock()
+                        .await
+                        .bus_voltage()
+                        .await
+                        .map_err(|e| anyhow::Error::msg(format!("{e}")))?
+                        .voltage_mv() as f32
+                        / 1_000.0;
+                    charge.lock().await.update(get_charge(voltage));
+                }
+            }
         }
     }
 }

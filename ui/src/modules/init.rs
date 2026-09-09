@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::{
     core::{CoreIf, interface::IfMngr, module::Module},
-    modules::build_module
+    modules::build_module,
 };
 use anyhow::Result;
 use async_trait::async_trait;
@@ -27,6 +27,7 @@ impl Module for Init {
             ("System", None),
             ("MeteoSensor", None),
             ("PowerCtrl", None),
+            ("Rda5807", None),
             ("Display", None),
             ("Keyboard", Some(1)),
             ("Desktop", None),

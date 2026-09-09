@@ -8,13 +8,21 @@ use embedded_graphics::{
     Drawable,
     draw_target::DrawTarget,
     geometry::{Point, Size},
+    image::{Image, ImageRaw},
     mono_font::{MonoTextStyle, ascii::FONT_10X20},
     pixelcolor::{Rgb565, RgbColor},
-    primitives::{Primitive, PrimitiveStyle, Rectangle},
+    primitives::{Line, Primitive, PrimitiveStyle, PrimitiveStyleBuilder, Rectangle},
     text::Text,
 };
 use std::sync::Arc;
 use tokio::sync::Mutex;
+
+pub struct Rect<T> {
+    pub x: T,
+    pub y: T,
+    pub width: T,
+    pub height: T,
+}
 
 create_imc_interface! {
     pub interface DisplayIf {
@@ -22,6 +30,10 @@ create_imc_interface! {
         fn text_mode_size()->(usize, usize);
         fn clear();
         fn flush();
+        fn draw_graph(
+            draw_rect: Rect<i32>, data_rect: Rect<f32>, data: Vec<f32>
+        );
+        fn draw_img(x: i32, y: i32, width: usize, data: Vec<u8>);
     }
 }
 
@@ -78,6 +90,54 @@ impl Module for Display {
         });
 
         let display = self.display.clone();
+        builder = builder.on_draw_img(move |x, y, width, data| {
+            let display = display.clone();
+            async move {
+                let raw = ImageRaw::<Rgb565>::new(&data, width as u32);
+                Image::new(&raw, Point::new(x, y))
+                    .draw(&mut *display.lock().await)
+                    .ok();
+            }
+        });
+
+        let display = self.display.clone();
+        builder = builder.on_draw_graph(move |draw_rect, data_rect, data| {
+            let display = display.clone();
+            async move {
+                let pos = Point::new(draw_rect.x, draw_rect.y);
+                let size = Size::new(draw_rect.width as u32, draw_rect.height as u32);
+                let style: PrimitiveStyle<Rgb565> = PrimitiveStyleBuilder::new()
+                    .stroke_color(Rgb565::WHITE)
+                    .stroke_width(1)
+                    .fill_color(Rgb565::BLACK)
+                    .build();
+                Rectangle::new(pos, size)
+                    .into_styled(style)
+                    .draw(&mut *display.lock().await)
+                    .ok();
+
+                let x_step = draw_rect.width as f32 / data_rect.width;
+
+                let make_point = |i: usize| -> Point {
+                    let x = pos.x + (i as f32 * x_step) as i32;
+                    let y = pos.y + size.height as i32
+                        - (size.height as f32 * (data[i] - data_rect.y) / data_rect.height) as i32;
+                    let y = y.clamp(pos.y, pos.y + size.height as i32);
+                    Point::new(x, y)
+                };
+
+                for i in 0..(data_rect.width as usize - 1) {
+                    let point_a = make_point(i);
+                    let point_b = make_point(i + 1);
+                    Line::new(point_a, point_b)
+                        .into_styled(PrimitiveStyle::with_stroke(Rgb565::RED, 1))
+                        .draw(&mut *display.lock().await)
+                        .ok();
+                }
+            }
+        });
+
+        let display = self.display.clone();
         builder = builder.on_clear(move || {
             let display = display.clone();
             async move {
@@ -103,7 +163,8 @@ impl Module for Display {
             .context("Failed to reg display interface")?;
 
         loop {
-            display_if.poll().await;
+            let event = display_if.poll_event().await;
+            display_if.handle_event(event).await;
         }
     }
 }

@@ -8,7 +8,14 @@ embedded-graphics = "0.8"
 memmap2 = "0.9"
 evdev = { version = "0.12", features = ["tokio"] }
 libc = "0.2"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }
+tokio = { version = "1", features = [
+    "process",
+    "rt-multi-thread",
+    "macros",
+    "time",
+    "sync",
+    "io-util"
+] }
 tokio-stream = "0.1"
 async-trait = "0.1"
 embedded-menu = "0.6.1"
@@ -20,3 +27,5 @@ ina219 = "0.2.1"
 embedded-hal-async = "1.0.0"
 if-addrs = "0.15.0"
 bmp180-embedded-hal = "0.1.0"
+zip = "7.2.0"
+png = "0.18.1"

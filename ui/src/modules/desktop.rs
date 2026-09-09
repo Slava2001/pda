@@ -52,7 +52,8 @@ impl Desktop {
 impl Module for Desktop {
     async fn run(&mut self, if_mngr: IfMngr) -> Result<()> {
         let (tx, mut list_channel) = mpsc::channel(10);
-        let mut menu = List::new("", vec!["CommonTest", "ExitTest"], move |v| {
+        let app_list = vec!["CommonTest", "ExitTest", "Barometer", "JavaGames", "Radio"];
+        let mut menu = List::new("", app_list, move |v| {
             tx.try_send(*v).ok();
         });
         menu.set_window(self.display.text_mode_size().await?.1);

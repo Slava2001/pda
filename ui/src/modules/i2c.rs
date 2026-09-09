@@ -118,7 +118,8 @@ impl Module for I2C {
             .context("Failed to reg i2c interface")?;
 
         loop {
-            i2c_if.poll().await;
+            let event = i2c_if.poll_event().await;
+            i2c_if.handle_event(event).await;
         }
     }
 }

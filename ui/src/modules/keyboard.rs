@@ -1,10 +1,10 @@
-use std::sync::Arc;
 use crate::{
     core::{interface::IfMngr, module::Module},
     create_imc_interface,
 };
 use anyhow::{Context, Result};
 use async_trait::async_trait;
+use std::sync::Arc;
 use tokio::select;
 
 #[derive(Debug, Clone, Copy)]
@@ -59,11 +59,13 @@ impl Module for Keyboard {
 
         let mut keyboard =
             gpio::KeyEventStream::new().context("Failed to create gpio event stream")?;
-            loop {
-                select! {
-                    _ = keyboard_if.poll() => {}
-                    event = keyboard.next() => {
-                        tx.send(event).ok();
+        loop {
+            select! {
+                event = keyboard_if.poll_event() => {
+                    keyboard_if.handle_event(event).await;
+                }
+                event = keyboard.next() => {
+                    tx.send(event).ok();
                 }
             }
         }

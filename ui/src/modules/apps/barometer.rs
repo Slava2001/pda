@@ -1,15 +1,11 @@
-use std::time::Duration;
-
 use crate::{
-    core::{interface::IfMngr, module::Module},
-    modules::{
-        display::DisplayIf,
-        keyboard::{KeyEvent, KeyboardIf},
-        meteo_sensor::MeteoSensorIf,
+    core::{interface::IfMngr, module::Module}, modules::{
+        display::{DisplayIf, Rect}, keyboard::{KeyEvent, KeyboardIf}, meteo_sensor::MeteoSensorIf,
     },
 };
 use anyhow::{Context, Result};
 use async_trait::async_trait;
+use std::time::Duration;
 use tokio::{
     select,
     sync::broadcast::{Receiver, error::RecvError},
@@ -50,17 +46,13 @@ impl Barometer {
 #[async_trait]
 impl Module for Barometer {
     async fn run(&mut self, _if_mngr: IfMngr) -> Result<()> {
-        let txt = "Press any button to exit".to_string();
-        self.display.draw_line(txt, 0).await?;
-        self.display.flush().await?;
         let mut timer = interval(Duration::from_micros(1000 / 60));
-
+        let mut data = vec![0.0; 1];
         loop {
             select! {
                 res = self.keys.recv() => {
                     match res {
                         Ok(KeyEvent::Press(_key)) => {
-                            return Ok(())
                         }
                         Ok(_) |
                         Err(RecvError::Lagged(_)) => {}
@@ -80,6 +72,24 @@ impl Module for Barometer {
                     self.display.draw_line(format!("Pressure: {:.0} Pa", pressure), 2)
                         .await?;
 
+                    data.push(pressure);
+                    if data.len() > 100 {
+                        data.remove(0);
+                    }
+
+                    self.display.draw_graph(Rect {
+                        x: 10,
+                        y: 90,
+                        width: 220,
+                        height: 220,
+                    }, Rect {
+                        x: 0.0,
+                        y: data[data.len() - 1] - 200.0,
+                        width: data.len() as f32,
+                        height: 400.0,
+                    },
+                    data.clone()).await?;
+                    self.display.flush().await?;
                 }
             }
         }
